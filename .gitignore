@@ -22,3 +22,6 @@ agents/*
 
 # Log files
 *.log
+
+# SQLite database files
+*.sqlite3
