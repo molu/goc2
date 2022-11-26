@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"log"
 
-	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -34,7 +33,7 @@ func createTables(db *sql.DB) (err error) {
 
 	stmt, err = db.Prepare(`
 		CREATE TABLE IF NOT EXISTS 
-			commands (agent_id TEXT NOT NULL UNIQUE, command TEXT, result TEXT, created_at TEXT NOT NULL, updated_at TEXT)
+			commands (id TEXT NOT NULL UNIQUE, agent_id TEXT, command TEXT, result TEXT, created_at TEXT NOT NULL, updated_at TEXT)
 	`)
 	if err != nil {
 		log.Fatal(err)
@@ -44,24 +43,6 @@ func createTables(db *sql.DB) (err error) {
 		log.Fatal(err)
 	}
 	return
-}
-
-func createRandomCmds(db *sql.DB, agentID string, count int) {
-	randomCmds := []string{"whoami", "id", "dir", "uname", "cat /etc/passwd"}
-	for i := 0; i < count; i++ {
-		cmdID := uuid.NewString()
-		cmd := randomCmds[i]
-		randomCmd := DBCommand{
-			id:        cmdID,
-			agentID:   agentID,
-			command:   cmd,
-			result:    "",
-			createdAt: "now",
-			updatedAt: "none",
-		}
-		createAgentCmd(db, randomCmd)
-	}
-
 }
 
 func createAgent(db *sql.DB, agent DBAgent) (err error) {
@@ -145,39 +126,47 @@ func createAgentCmd(db *sql.DB, cmd DBCommand) {
 		updatedAt: cmd.updatedAt,
 	}
 	stmt, err := db.Prepare(`
-		INSERT INTO commands (id, agent_id, cmd, result, created_at, updated_at) VALUES ( ?, ?, ?, ?, ? )
+		INSERT INTO commands (id, agent_id, command, result, created_at, updated_at) VALUES ( ?, ?, ?, ?, ?, ? )
 	`)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer stmt.Close()
 
-	if _, err := stmt.Exec(dbCmd.agentID, dbCmd.command, dbCmd.result, dbCmd.createdAt, dbCmd.updatedAt); err != nil {
+	if _, err := stmt.Exec(dbCmd.id, dbCmd.agentID, dbCmd.command, dbCmd.result, dbCmd.createdAt, dbCmd.updatedAt); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func getAgentCmd(agentID string) (cmd string) {
-	log.Printf("get cmd for agent %s", agentID)
-	cmd = "whoami"
+func getAgentCmd(db *sql.DB, agentID string) (cmd DBCommand, err error) {
+	stmt, err := db.Prepare("SELECT * FROM commands WHERE agent_id = ? AND result = ''")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query(agentID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for rows.Next() {
+		err = rows.Scan(&cmd.id, &cmd.agentID, &cmd.command, &cmd.result, &cmd.createdAt, &cmd.updatedAt)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	return
 }
 
 func updateAgentCmd(db *sql.DB, dbCmd DBCommand) {
 	stmt, err := db.Prepare(`
-		UPDATE commands 
-		SET cmd = ?,
-			result = ?,
-			created_at = ?,
-			updated_at = ?,
-		WHERE agent_id = ?
-	`)
+		UPDATE commands SET command = ?, result = ?, created_at = ?, updated_at = ? WHERE id = ?`)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer stmt.Close()
 
-	if _, err := stmt.Exec(dbCmd.command, dbCmd.result, dbCmd.createdAt, dbCmd.updatedAt, dbCmd.agentID); err != nil {
+	if _, err := stmt.Exec(dbCmd.command, dbCmd.result, dbCmd.createdAt, dbCmd.updatedAt, dbCmd.id); err != nil {
 		log.Fatal(err)
 	}
 }

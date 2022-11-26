@@ -20,7 +20,7 @@ func main() {
 	cmdHeader := flag.String("ch", "Accept", "response header containing command")
 	dataHeader := flag.String("dh", "Authorization", "request header containing command output")
 
-	s := server.Server{
+	s := &server.Server{
 		DomainName:  *domainName,
 		ListenAddr:  *listenAddr + ":" + *listenPort,
 		CACertFile:  *caCertFile,

@@ -26,7 +26,7 @@ type Agent struct {
 	RequestDelay int
 }
 
-func (a *Agent) Connect() {
+func (a *Agent) Poll() {
 	privateKeyBlock := parseECPrivateKeyWithPasphrase(a.PrivKey, a.KeyPass)
 	agentCert, err := tls.X509KeyPair(a.Cert, privateKeyBlock)
 	if err != nil {

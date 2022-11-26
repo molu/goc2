@@ -46,7 +46,7 @@ func main() {
 		log.Fatalf("failed to parse string to int: %v", err)
 	}
 
-	a := agent.Agent{
+	a := &agent.Agent{
 		Name:         AgentName,
 		ServerAddr:   ServerAddr,
 		CACert:       []byte(caCertBlock),
@@ -58,5 +58,5 @@ func main() {
 		DataHeader:   DataHeader,
 		RequestDelay: requestDelay,
 	}
-	a.Connect()
+	a.Poll()
 }
